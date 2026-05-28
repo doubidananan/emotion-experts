@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>三位情感专家</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; }
+        .dot-loading { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+        .dot-loading span { width: 6px; height: 6px; border-radius: 50%; background: #9ca3af; animation: bounce 1.2s infinite ease-in-out; }
+        .dot-loading span:nth-child(2) { animation-delay: 0.2s; }
+        .dot-loading span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%,80%,100% { transform:scale(0.7);opacity:0.5; } 40% { transform:scale(1);opacity:1; } }
+        textarea { resize: none; }
+        .view { display: none; flex-direction: column; }
+        .view.active { display: flex; }
+        .chevron { transition: transform 0.2s; }
+        .chevron.open { transform: rotate(180deg); }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col max-w-lg mx-auto overflow-hidden" style="height:100dvh">
+
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <h1 class="text-base font-semibold text-gray-900">三位情感专家</h1>
+        <div class="flex items-center gap-1">
+            <button onclick="startNewConversation()" class="p-1.5 text-gray-400 active:text-gray-600" title="新对话">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+            </button>
+            <button onclick="switchView('settings')" class="p-1.5 text-gray-400 active:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- 咨询 View -->
+    <div id="view-main" class="view active flex-1 overflow-hidden">
+        <div id="no-key-warning" class="hidden bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-700 flex-shrink-0">
+            ⚠️ 请先在「设置」中填入 API Key
+        </div>
+        <div id="scroll-area" class="flex-1 overflow-y-auto p-4">
+
+            <!-- Welcome -->
+            <div id="welcome-state" class="flex flex-col items-center justify-center py-16 text-center">
+                <div class="text-5xl mb-4">🫂</div>
+                <p class="text-gray-400 text-sm leading-relaxed">
+                    把你的情感困惑告诉我<br>专家会先了解情况，再给出分析和建议
+                </p>
+                <div class="mt-6 space-y-2 text-left w-full max-w-xs">
+                    <div class="bg-white rounded-xl px-3 py-2 flex items-center gap-2 text-sm text-gray-500">
+                        <span>🌹</span><span>叙事派 · 关系叙事与权力动力</span>
+                    </div>
+                    <div class="bg-white rounded-xl px-3 py-2 flex items-center gap-2 text-sm text-gray-500">
+                        <span>📊</span><span>科学派 · 关系行为科学</span>
+                    </div>
+                    <div class="bg-white rounded-xl px-3 py-2 flex items-center gap-2 text-sm text-gray-500">
+                        <span>🌿</span><span>成长派 · 自我发展心理学</span>
+                    </div>
+                    <div class="bg-amber-50 rounded-xl px-3 py-2 flex items-center gap-2 text-sm text-amber-600">
+                        <span>✍️</span><span>策略主编 · 整合方案与话术</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exchanges (dynamically rendered) -->
+            <div id="exchanges-container" class="hidden space-y-4"></div>
+        </div>
+
+        <!-- Input -->
+        <div class="bg-white border-t border-gray-100 px-3 py-3 flex-shrink-0">
+            <div class="flex gap-2 items-end">
+                <textarea id="question-input"
+                    class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors min-h-[40px] max-h-28"
+                    placeholder="说说你的困惑..." rows="1"
+                    oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
+                <button id="send-btn" onclick="sendQuestion()"
+                    class="bg-gray-800 text-white rounded-xl px-4 py-2 text-sm font-medium flex-shrink-0 disabled:opacity-40 active:bg-gray-700">
+                    发送
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史 View -->
+    <div id="view-history" class="view flex-1 overflow-hidden">
+        <div class="flex-1 overflow-y-auto">
+            <div id="history-empty" class="flex flex-col items-center justify-center py-20 text-gray-400 text-sm">
+                <div class="text-4xl mb-3">📝</div>
+                还没有历史记录
+            </div>
+            <div id="history-list" class="divide-y divide-gray-100 bg-white"></div>
+        </div>
+    </div>
+
+    <!-- 设置 View -->
+    <div id="view-settings" class="view flex-1 overflow-y-auto p-4 gap-4">
+        <div class="bg-white rounded-2xl p-4 space-y-4">
+            <h2 class="font-medium text-gray-800 text-sm">API 配置</h2>
+            <div class="space-y-1">
+                <label class="text-xs text-gray-500">API Key</label>
+                <input id="api-key-input" type="password"
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-gray-400"
+                    placeholder="sk-xxxxxxxxxxxxxxxx"/>
+                <p class="text-xs text-gray-400">推荐使用 DeepSeek，价格低且效果好</p>
+            </div>
+            <div class="space-y-1">
+                <label class="text-xs text-gray-500">API 地址</label>
+                <input id="base-url-input" type="text"
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-gray-400"
+                    placeholder="https://api.deepseek.com"/>
+            <div class="space-y-1">
+    <label class="text-xs text-gray-500">模型</label>
+    <select id="model-input"
+        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-gray-400">
+        <option value="deepseek-chat">DeepSeek V3（快）</option>
+        <option value="deepseek-reasoner">DeepSeek R1（深度推理）</option>
+    </select>
+</div>
+            <button onclick="saveSettings()"
+                class="w-full bg-gray-800 text-white rounded-xl py-2.5 text-sm font-medium active:bg-gray-700">
+                保存
+            </button>
+        </div>
+        <div class="bg-white rounded-2xl p-4 space-y-3">
+            <h2 class="font-medium text-gray-800 text-sm">数据管理</h2>
+            <button onclick="clearHistory()"
+                class="w-full border border-red-200 text-red-500 rounded-xl py-2.5 text-sm active:bg-red-50">
+                清除所有历史记录
+            </button>
+        </div>
+        <div class="text-center text-xs text-gray-400 pb-2">
+            API Key 仅存储在你的设备本地<br>不会上传到任何服务器
+        </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="bg-white border-t border-gray-100 flex flex-shrink-0">
+        <button onclick="switchView('main')" id="nav-main"
+            class="flex-1 py-2.5 flex flex-col items-center gap-0.5 text-gray-800 text-xs">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+            咨询
+        </button>
+        <button onclick="switchView('history')" id="nav-history"
+            class="flex-1 py-2.5 flex flex-col items-center gap-0.5 text-gray-400 text-xs">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            历史
+        </button>
+        <button onclick="switchView('settings')" id="nav-settings"
+            class="flex-1 py-2.5 flex flex-col items-center gap-0.5 text-gray-400 text-xs">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            设置
+        </button>
+    </div>
+
+<script>
+// ─── Expert Config ───────────────────────────────────────────────────────────
+
+const EXPERTS = {
+    perel: {
+        systemPrompt: `你是 Esther Perel，关系治疗师。
+
+首要原则：紧扣用户描述的具体情境，不泛泛讲框架。
+
+你的视角：关注关系中每个人在「保护什么」，关系是活的叙事，善用悖论思维。
+
+【对话流程——严格按轮次执行】
+第1轮（用户第一次说情况）：
+  - 用一句话确认你听到的核心是什么
+  - 从你的视角提1个最关键的澄清问题
+  - 不分析，不建议，100字以内
+
+第2轮（用户补充情况后）：
+  - 分析当前状态是什么、为什么会这样
+  - 给出具体建议
+  - 最后用一句话问：「你是否想深入了解这次事件背后的根源和改进方向？」
+  - 300字以内
+
+第3轮（用户表示想深入，如「想」「好」「分析一下」「可以」）：
+  - 给出完整根因分析报告：事件根本原因、具体改进建议、长期改进方向
+  - 400字以内
+
+第4轮起：正常对话跟进
+
+温暖但不回避真相，不说「你应该」`
+    },
+    gottman: {
+        systemPrompt: `你是 John Gottman，关系研究者。
+
+首要原则：只分析用户实际描述的行为和互动，不套通用框架。
+
+你的视角：把情绪翻译成可观察的行为，识别真实互动模式，冲突的方式比冲突本身更重要。
+
+【对话流程——严格按轮次执行】
+第1轮（用户第一次说情况）：
+  - 用一句话确认你听到的核心是什么
+  - 从你的视角提1个最关键的澄清问题
+  - 不分析，不建议，100字以内
+
+第2轮（用户补充情况后）：
+  - 指出你观察到的具体行为模式
+  - 给出今天可执行的具体调整
+  - 最后用一句话问：「你是否想深入了解这次事件背后的根源和改进方向？」
+  - 300字以内
+
+第3轮（用户表示想深入）：
+  - 给出完整根因分析报告：行为模式根源、具体改进建议、长期改进方向
+  - 400字以内
+
+第4轮起：正常对话跟进
+
+给具体可执行的建议，不给「多沟通」这类模糊建议`
+    },
+    chen: {
+        systemPrompt: `你是陈海贤，心理咨询师。
+
+首要原则：先真正理解用户的具体处境，再回应。
+
+你的视角：共情先于分析，很多个人困境是关系系统的困境，行动可以创造感觉。
+
+【对话流程——严格按轮次执行】
+第1轮（用户第一次说情况）：
+  - 用一句话准确说出用户现在最难受的是什么（让他感到被理解）
+  - 提1个关键澄清问题
+  - 100字以内
+
+第2轮（用户补充情况后）：
+  - 共情处境，解释为什么会卡住（机制，不是评判）
+  - 给最小可执行的第一步
+  - 最后用一句话问：「你是否想深入了解这次事件背后的根源和改进方向？」
+  - 300字以内
+
+第3轮（用户表示想深入）：
+  - 给出完整根因分析报告：心理机制根源、具体改进建议、长期成长方向
+  - 400字以内
+
+第4轮起：正常对话跟进
+
+温和，不鸡汤，不用「其实很简单」`
+    }
+};
+
+const SYNTHESIZER = {
+    systemPrompt: `你是一位资深关系策略师，负责整合三位专家的洞察，给出可立刻执行的方案。
+
+【对话流程——严格按轮次执行】
+第1轮：不出现（专家正在了解情况）
+
+第2轮（专家已给出分析和建议后）：
+  - 给出2-3个今天可以立刻执行的具体步骤
+  - 每步附上可以直接说出口的话术，用「」括起来，口语化，像真人说话
+  - 不重复专家分析，直接给方案
+  - 第一步要最简单，350字以内
+
+第3轮（用户要深入分析后）：
+  - 给出结构化改进路线图：短期行动（本周）、中期调整（1-3个月）、长期方向
+  - 每项附具体话术或行动描述
+  - 400字以内
+
+第4轮起：根据对话内容给出最新的行动建议`
+};
+
+const CARD_CFG = {
+    perel:   { icon:'🌹', name:'叙事派',  sub:'关系叙事 · 欲望与权力',         bg:'rose-50',  nc:'rose-800',  sc:'rose-400',  cc:'rose-300',  collapsible:true  },
+    gottman: { icon:'📊', name:'科学派',  sub:'行为科学 · 关系健康信号',        bg:'blue-50',  nc:'blue-800',  sc:'blue-400',  cc:'blue-300',  collapsible:true  },
+    chen:    { icon:'🌿', name:'成长派',  sub:'自我发展 · 关系机制',            bg:'green-50', nc:'green-800', sc:'green-400', cc:'green-300', collapsible:true  },
+    synth:   { icon:'✍️', name:'策略主编', sub:'整合三位专家 · 可执行方案与话术', bg:'amber-50', nc:'amber-800', sc:'amber-400', cc:null,        collapsible:false }
+};
+
+const MAX_UNPINNED = 20;
+
+// ─── State ───────────────────────────────────────────────────────────────────
+
+let currentConv = null; // { id, pinned, exchanges: [{user, experts:{perel,gottman,chen,synth}}], title, time }
+let isLoading = false;
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+
+function init() {
+    loadSettingsToForm();
+    checkApiKey();
+    startNewConversation();
+}
+
+// ─── Conversation ─────────────────────────────────────────────────────────────
+
+function startNewConversation() {
+    currentConv = { id: Date.now(), pinned: false, exchanges: [], title: '', time: '' };
+    document.getElementById('welcome-state').classList.remove('hidden');
+    const ec = document.getElementById('exchanges-container');
+    ec.classList.add('hidden');
+    ec.innerHTML = '';
+    const inp = document.getElementById('question-input');
+    inp.value = '';
+    inp.style.height = 'auto';
+    switchView('main');
+}
+
+function openConversation(id) {
+    const conv = getConvById(id);
+    if (!conv) return;
+    currentConv = JSON.parse(JSON.stringify(conv));
+    document.getElementById('welcome-state').classList.add('hidden');
+    const ec = document.getElementById('exchanges-container');
+    ec.innerHTML = '';
+    ec.classList.remove('hidden');
+    conv.exchanges.forEach((ex, i) => renderExchange(ex, i, false));
+    switchView('main');
+    setTimeout(() => {
+        const sa = document.getElementById('scroll-area');
+        sa.scrollTop = sa.scrollHeight;
+    }, 50);
+}
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+
+function getAllConvs() {
+    return JSON.parse(localStorage.getItem('expertConvs') || '[]');
+}
+
+function saveAllConvs(convs) {
+    localStorage.setItem('expertConvs', JSON.stringify(convs));
+}
+
+function getConvById(id) {
+    return getAllConvs().find(c => c.id === id) || null;
+}
+
+function saveCurrentConv() {
+    if (!currentConv || currentConv.exchanges.length === 0) return;
+    let all = getAllConvs();
+    const idx = all.findIndex(c => c.id === currentConv.id);
+    if (idx >= 0) all[idx] = currentConv;
+    else all.unshift(currentConv);
+    const pinned = all.filter(c => c.pinned);
+    const unpinned = all.filter(c => !c.pinned).slice(0, MAX_UNPINNED);
+    saveAllConvs([...pinned, ...unpinned]);
+}
+
+function togglePin(id) {
+    const all = getAllConvs();
+    const conv = all.find(c => c.id === id);
+    if (!conv) return;
+    conv.pinned = !conv.pinned;
+    if (currentConv && currentConv.id === id) currentConv.pinned = conv.pinned;
+    saveAllConvs(all);
+    renderHistory();
+}
+
+function deleteConv(id) {
+    saveAllConvs(getAllConvs().filter(c => c.id !== id));
+    if (currentConv && currentConv.id === id) startNewConversation();
+    renderHistory();
+}
+
+// ─── UI: Exchange Rendering ───────────────────────────────────────────────────
+
+function makeCard(xIdx, key, restored) {
+    const c = CARD_CFG[key];
+    const div = document.createElement('div');
+    div.id = `card-${xIdx}-${key}`;
+    div.className = 'bg-white rounded-2xl shadow-sm overflow-hidden' + (key === 'synth' ? ' border border-amber-100' : '');
+    div.innerHTML = `
+        <div class="bg-${c.bg} px-4 py-2.5 flex items-center gap-2.5${c.collapsible ? ' cursor-pointer' : ''}"
+             ${c.collapsible ? `onclick="toggleCard('${xIdx}-${key}')"` : ''}>
+            <span class="text-lg">${c.icon}</span>
+            <div class="flex-1">
+                <div class="text-sm font-medium text-${c.nc}">${c.name}</div>
+                <div class="text-xs text-${c.sc}">${c.sub}</div>
+            </div>
+            <div id="load-${xIdx}-${key}" class="dot-loading" style="${restored ? 'display:none' : ''}">
+                <span></span><span></span><span></span>
+            </div>
+            ${c.collapsible ? `<svg id="chev-${xIdx}-${key}" class="chevron w-4 h-4 text-${c.cc} ${restored ? '' : 'hidden'} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>` : ''}
+        </div>
+        <div id="cont-${xIdx}-${key}" class="hidden px-4 py-3 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap"></div>`;
+    return div;
+}
+
+function fillCard(xIdx, key, text, expand) {
+    const load = document.getElementById(`load-${xIdx}-${key}`);
+    const cont = document.getElementById(`cont-${xIdx}-${key}`);
+    const chev = document.getElementById(`chev-${xIdx}-${key}`);
+    if (load) load.style.display = 'none';
+    if (cont) {
+        cont.textContent = text;
+        if (expand) cont.classList.remove('hidden');
+    }
+    if (chev) chev.classList.remove('hidden');
+}
+
+function toggleCard(id) {
+    const cont = document.getElementById(`cont-${id}`);
+    const chev = document.getElementById(`chev-${id}`);
+    if (!cont || !cont.textContent) return;
+    const opening = cont.classList.contains('hidden');
+    cont.classList.toggle('hidden', !opening);
+    if (chev) chev.classList.toggle('open', opening);
+}
+
+function renderExchange(ex, xIdx, isLive) {
+    const ec = document.getElementById('exchanges-container');
+    const isFirst = xIdx === 0;
+    const hasSynth = !isFirst && ex.experts && ex.experts.synth;
+
+    if (xIdx > 0) {
+        const div = document.createElement('div');
+        div.className = 'border-t border-gray-200 pt-1';
+        ec.appendChild(div);
+    }
+
+    const block = document.createElement('div');
+    block.id = `xblock-${xIdx}`;
+    block.className = 'space-y-3';
+
+    // User bubble
+    const bubble = document.createElement('div');
+    bubble.className = 'flex justify-end';
+    bubble.innerHTML = `<div class="bg-gray-800 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-xs leading-relaxed">${esc(ex.user)}</div>`;
+    block.appendChild(bubble);
+
+    const restored = !isLive;
+    ['perel', 'gottman', 'chen'].forEach(key => block.appendChild(makeCard(xIdx, key, restored)));
+
+    const synthCard = makeCard(xIdx, 'synth', restored);
+    if (isFirst || (!hasSynth && !isLive)) synthCard.style.display = 'none';
+    block.appendChild(synthCard);
+
+    ec.appendChild(block);
+
+    // Fill content if restored
+    if (restored && ex.experts) {
+        ['perel', 'gottman', 'chen'].forEach(key => {
+            if (ex.experts[key]) fillCard(xIdx, key, ex.experts[key], false);
+        });
+        if (ex.experts.synth) {
+            synthCard.style.display = '';
+            fillCard(xIdx, 'synth', ex.experts.synth, true);
+        }
+    }
+
+    if (isLive) {
+        setTimeout(() => block.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
+}
+
+// ─── Send ─────────────────────────────────────────────────────────────────────
+
+async function sendQuestion() {
+    if (isLoading) return;
+    const input = document.getElementById('question-input');
+    const question = input.value.trim();
+    if (!question) return;
+
+    const s = getSettings();
+    if (!s.apiKey) { toast('请先在设置中填入 API Key'); switchView('settings'); return; }
+
+    isLoading = true;
+    document.getElementById('send-btn').disabled = true;
+    input.value = '';
+    input.style.height = 'auto';
+
+    document.getElementById('welcome-state').classList.add('hidden');
+    document.getElementById('exchanges-container').classList.remove('hidden');
+
+    const xIdx = currentConv.exchanges.length;
+    const isFirst = xIdx === 0;
+
+    renderExchange({ user: question, experts: {} }, xIdx, true);
+
+    const responses = {};
+
+    await Promise.all(['perel', 'gottman', 'chen'].map(async key => {
+        try {
+            responses[key] = await callExpert(key, question, currentConv, s);
+        } catch (err) {
+            responses[key] = `⚠️ 请求失败：${err.message}`;
+        }
+        fillCard(xIdx, key, responses[key], false);
+    }));
+
+    if (!isFirst) {
+        const synthCard = document.getElementById(`card-${xIdx}-synth`);
+        if (synthCard) synthCard.style.display = '';
+        try {
+            responses.synth = await callSynth(question, responses, currentConv, s);
+        } catch (err) {
+            responses.synth = `⚠️ 请求失败：${err.message}`;
+        }
+        fillCard(xIdx, 'synth', responses.synth, true);
+    }
+
+    currentConv.exchanges.push({ user: question, experts: responses });
+    if (currentConv.exchanges.length === 1) {
+        currentConv.title = question.slice(0, 30);
+        currentConv.time = new Date().toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    }
+    saveCurrentConv();
+
+    isLoading = false;
+    document.getElementById('send-btn').disabled = false;
+}
+
+// ─── API ──────────────────────────────────────────────────────────────────────
+
+async function callExpert(key, userMsg, conv, s) {
+    const messages = [{ role: 'system', content: EXPERTS[key].systemPrompt }];
+    conv.exchanges.forEach(ex => {
+        messages.push({ role: 'user', content: ex.user });
+        if (ex.experts[key]) messages.push({ role: 'assistant', content: ex.experts[key] });
+    });
+    messages.push({ role: 'user', content: userMsg });
+    return callAPI(messages, s);
+}
+
+async function callSynth(userMsg, expertResps, conv, s) {
+    const messages = [{ role: 'system', content: SYNTHESIZER.systemPrompt }];
+    conv.exchanges.forEach((ex, i) => {
+        if (i === 0) return;
+        messages.push({ role: 'user', content: ex.user });
+        if (ex.experts.synth) messages.push({ role: 'assistant', content: ex.experts.synth });
+    });
+    const ctx = `用户消息：${userMsg}\n\n三位专家回应：\n🌹 叙事派：${expertResps.perel}\n📊 科学派：${expertResps.gottman}\n🌿 成长派：${expertResps.chen}`;
+    messages.push({ role: 'user', content: ctx });
+    return callAPI(messages, s);
+}
+
+async function callAPI(messages, settings) {
+    const baseUrl = settings.baseUrl.replace(/\/$/, '');
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${settings.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: settings.model || 'deepseek-chat', messages, max_tokens: 1000, temperature: 0.8 })
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+    return (await res.json()).choices[0].message.content.trim();
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+function loadSettingsToForm() {
+    const s = getSettings();
+    document.getElementById('api-key-input').value = s.apiKey || '';
+    document.getElementById('base-url-input').value = s.baseUrl || 'https://api.deepseek.com';
+    document.getElementById('model-input').value = s.model || 'deepseek-chat';
+}
+
+function getSettings() { return JSON.parse(localStorage.getItem('expertSettings') || '{}'); }
+
+function checkApiKey() {
+    document.getElementById('no-key-warning').classList.toggle('hidden', !!getSettings().apiKey);
+}
+
+function saveSettings() {
+    const settings = {
+        apiKey: document.getElementById('api-key-input').value.trim(),
+        baseUrl: document.getElementById('base-url-input').value.trim() || 'https://api.deepseek.com',
+        model: document.getElementById('model-input').value.trim() || 'deepseek-chat'
+    };
+    localStorage.setItem('expertSettings', JSON.stringify(settings));
+    checkApiKey();
+    toast('设置已保存');
+    switchView('main');
+}
+
+// ─── History ──────────────────────────────────────────────────────────────────
+
+function renderHistory() {
+    const all = getAllConvs();
+    const listEl = document.getElementById('history-list');
+    const emptyEl = document.getElementById('history-empty');
+    if (all.length === 0) { emptyEl.classList.remove('hidden'); listEl.innerHTML = ''; return; }
+    emptyEl.classList.add('hidden');
+    const sorted = [...all].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return b.id - a.id;
+    });
+    listEl.innerHTML = sorted.map(c => `
+        <div class="flex items-start gap-2 px-4 py-3${c.pinned ? ' bg-amber-50' : ''}">
+            <button onclick="openConversation(${c.id})" class="flex-1 text-left min-w-0">
+                <p class="text-sm text-gray-800 line-clamp-2 leading-snug">${esc(c.title || '')}</p>
+                <p class="text-xs text-gray-400 mt-1">${c.time}${c.exchanges.length > 1 ? ` · ${c.exchanges.length}轮` : ''}</p>
+            </button>
+            <div class="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+                <button onclick="togglePin(${c.id})" class="p-1.5 ${c.pinned ? 'text-amber-500' : 'text-gray-300'}" title="${c.pinned ? '取消置顶' : '置顶'}">
+                    <svg class="w-4 h-4" fill="${c.pinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+                    </svg>
+                </button>
+                <button onclick="if(confirm('删除这条对话？'))deleteConv(${c.id})" class="p-1.5 text-gray-300 active:text-red-400" title="删除">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function clearHistory() {
+    if (!confirm('确定清除所有历史记录吗？')) return;
+    localStorage.removeItem('expertConvs');
+    startNewConversation();
+    renderHistory();
+    toast('已清除');
+}
+
+// ─── View & Input ─────────────────────────────────────────────────────────────
+
+function switchView(view) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('[id^="nav-"]').forEach(n => { n.classList.remove('text-gray-800'); n.classList.add('text-gray-400'); });
+    document.getElementById(`view-${view}`).classList.add('active');
+    const btn = document.getElementById(`nav-${view}`);
+    if (btn) { btn.classList.remove('text-gray-400'); btn.classList.add('text-gray-800'); }
+    if (view === 'history') renderHistory();
+}
+
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 112) + 'px'; }
+
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 640) { e.preventDefault(); sendQuestion(); }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'fixed top-14 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-4 py-2 rounded-full z-50 shadow-lg pointer-events-none';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2000);
+}
+
+function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Mobile keyboard fix ──────────────────────────────────────────────────────
+function fixHeight() {
+    const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.body.style.height = h + 'px';
+}
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', fixHeight);
+    window.visualViewport.addEventListener('scroll', fixHeight);
+}
+fixHeight();
+
+init();
+</script>
+</body>
+</html>
