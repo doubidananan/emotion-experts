@@ -656,16 +656,7 @@ function esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ─── Mobile keyboard fix ──────────────────────────────────────────────────────
-function fixHeight() {
-    const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    document.body.style.height = h + 'px';
-}
-if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', fixHeight);
-    window.visualViewport.addEventListener('scroll', fixHeight);
-}
-fixHeight();
+
 
 init();
 </script>
